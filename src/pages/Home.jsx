@@ -1,142 +1,80 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 export default function Home() {
-  // Mock inventory data (for demonstration)
-  const inventory = {
-    items: [
-      {
-        id: '1',
-        name: 'Nike Airmax Pro',
-        Stock: 100,
-        image: 'prod1.jpg',
-      },
-      {
-        id: '2',
-        name: 'Adidas Sachin Edition',
-        Stock: 150,
-        image: 'prod2.jpg',
-      },
-      {
-        id: '3',
-        name: 'Nike Air Jordan 1',
-        Stock: 50,
-        image: 'prod3.jpg',
-      },
-      {
-        id: '4',
-        name: 'Reebok Athlete',
-        Stock: 250,
-        image: 'prod4.jpg',
-      },
-    ],
-    orders: [
-      {
-        orderid: '1',
-        customername: 'Abhishek Jain',
-        orderitem: [
-          {
-            id: '1',
-            name: 'Nike Air Jordan 1',
-            quantity: '2',
-            image: 'prod3.jpg',
-          },
-        ],
-        status: 'Pending',
-      },
-      {
-        orderid: '2',
-        customername: 'Shailee Jain',
-        orderitem: [
-          {
-            id: '2',
-            name: 'Adidas Sachin Edition',
-            quantity: '5',
-            image: 'prod2.jpg',
-          },
-        ],
-        status: 'Done',
-      },
-      {
-        orderid: '3',
-        customername: 'Lokesh Jain',
-        orderitem: [
-          {
-            id: '3',
-            name: 'Reebok Athlete',
-            quantity: '10',
-            image: 'prod4.jpg',
-          },
-        ],
-        status: 'Pending',
-      },
-    ],
-  };
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // جلب الطلبات والإحصائيات الحقيقية من Netlify Function
+  useEffect(() => {
+    fetch('/.netlify/functions/inventory')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && Array.isArray(data.orders)) {
+          setOrders(data.orders);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('Error fetching dashboard data:', err);
+        setLoading(false);
+      });
+  }, []);
 
   return (
-    // Main container for the Home page with class 'home' and 'mainbar'
     <div className="home mainbar">
-      {/* Heading section */}
+      {/* عنوان الصفحة */}
       <div className="heading">
         <div className="headingtag">Dashboard</div>
       </div>
 
-      {/* Main content section */}
+      {/* المحتوى الرئيسي */}
       <div className="mainbarpage">
-        {/* Component for displaying main page tags (Total Orders, Processed Orders, Remaining Orders) */}
-        <Mainpagetags orders={inventory.orders} />
-        {/* Component for displaying recent order section */}
-        <RecentOrdersection orders={inventory.orders} />
+        <Mainpagetags orders={orders} loading={loading} />
+        <RecentOrdersection orders={orders} loading={loading} />
       </div>
     </div>
   );
 
-  // Component for displaying main page tags (Total Orders, Processed Orders, Remaining Orders)
-  function Mainpagetags({ orders }) {
-    // Calculate total, processed, and remaining orders
+  // بطاقات الإحصائيات العلوية
+  function Mainpagetags({ orders, loading }) {
     const totalOrders = orders.length;
-    const processedOrders = orders.filter(
-      (order) => order.status === 'Done'
-    ).length;
+    const processedOrders = orders.filter((order) => order.status === 'Done').length;
     const remainingOrders = totalOrders - processedOrders;
 
     return (
       <div className="mainpagetags">
-        {/* Total Orders tag */}
+        {/* إجمالي الطلبات */}
         <div className="totalordertag tagcards">
           <div className="topcard">
-            {/* Icon for Total Orders */}
             <img src="order.png" alt="" className="cardicon" />
             <div className="cardtoptag">Total Orders</div>
           </div>
           <div className="middlecard">
-            {/* Display total number of orders */}
-            <div className="ordernumber">{totalOrders}</div>
+            <div className="ordernumber">{loading ? '...' : totalOrders}</div>
           </div>
           <div className="bottomcard"></div>
         </div>
-        {/* Processed Orders tag */}
+
+        {/* الطلبات المكتملة */}
         <div className="processedordertag tagcards">
           <div className="topcard">
-            {/* Icon for Processed Orders */}
             <img src="done.png" alt="" className="cardicon" />
             <div className="cardtoptag">Processed Orders</div>
           </div>
           <div className="middlecard">
-            {/* Display number of processed orders */}
-            <div className="ordernumber">{processedOrders}</div>
+            <div className="ordernumber">{loading ? '...' : processedOrders}</div>
           </div>
           <div className="bottomcard"></div>
         </div>
-        {/* Remaining Orders tag */}
+
+        {/* الطلبات المتبقية */}
         <div className="remainingorderstag tagcards">
           <div className="topcard">
-            {/* Icon for Remaining Orders */}
             <img src="remaining.png" alt="" className="cardicon" />
             <div className="cardtoptag">Remaining Orders</div>
           </div>
           <div className="middlecard">
-            {/* Display number of remaining orders */}
-            <div className="ordernumber">{remainingOrders}</div>
+            <div className="ordernumber">{loading ? '...' : remainingOrders}</div>
           </div>
           <div className="bottomcard"></div>
         </div>
@@ -144,45 +82,63 @@ export default function Home() {
     );
   }
 
-  // Component for displaying recent order section
-  function RecentOrdersection({ orders }) {
+  // قسم آخر الطلبات المسجلة
+  function RecentOrdersection({ orders, loading }) {
     return (
       <div className="recentorderssection">
-        {/* Heading for Recent Orders section */}
         <div className="recentorderheading">Recent Orders</div>
-        {/* Map through orders to display each order as a card */}
-        {orders.map((order, index) => (
-          <OrderCard
-            key={order.orderid}
-            sno={index + 1}
-            image={order.orderitem[0].image}
-            id={order.orderid}
-            itemcount={order.orderitem[0].quantity}
-            custname={order.customername}
-            status={order.status}
-          />
-        ))}
+        {loading ? (
+          <div style={{ padding: '30px', textAlign: 'center', color: '#aaa' }}>
+            جاري مزامنة الإحصائيات والطلبات...
+          </div>
+        ) : orders.length === 0 ? (
+          <div style={{ padding: '30px', textAlign: 'center', color: '#aaa' }}>
+            لا توجد إيصالات حديثة مسجلة في كاشير Loyverse
+          </div>
+        ) : (
+          orders.slice(0, 5).map((order, index) => (
+            <OrderCard
+              key={order.orderid || index}
+              sno={index + 1}
+              image={order.orderitem?.[0]?.image}
+              id={order.orderid}
+              itemcount={order.orderitem?.[0]?.quantity || 1}
+              custname={order.customername}
+              status={order.status}
+            />
+          ))
+        )}
       </div>
     );
   }
 
-  // Component for displaying individual order card
+  // كرت عرض كل طلب
   function OrderCard({ sno, image, id, itemcount, custname, status }) {
     return (
       <div className="recentordersdiv">
-        {/* Serial number of the order */}
         <div className="sno">{sno}.</div>
-        {/* Image of the ordered product */}
         <div className="itemimage">
-          <img src={image} alt="product" className="productimage" />
+          {image ? (
+            <img src={image} alt="product" className="productimage" />
+          ) : (
+            <div
+              className="productimage"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '22px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                borderRadius: '8px',
+              }}
+            >
+              🧾
+            </div>
+          )}
         </div>
-        {/* Order ID */}
         <div className="itemid">Id - {id}</div>
-        {/* Quantity of items ordered */}
         <div className="itemid">No - {itemcount}</div>
-        {/* Customer name */}
         <div className="itemid custname">Customer Name : {custname}</div>
-        {/* Status of the order with conditional styling */}
         <div className={`status ${status === 'Pending' ? '' : 'greenborder'}`}>
           <div
             className={status === 'Pending' ? 'redcircle' : 'greencircle'}
