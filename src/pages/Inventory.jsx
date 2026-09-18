@@ -7,21 +7,15 @@ export default function Inventory() {
   });
   const [loading, setLoading] = useState(true);
 
-  // جلب بيانات المخزون المباشرة من Loyverse عبر Netlify Function
+  // جلب بيانات المخزون المباشرة (الأسماء، الكميات، والصور) من Loyverse
   useEffect(() => {
     fetch('/.netlify/functions/inventory')
       .then((res) => res.json())
       .then((data) => {
-        if (data && data.inventory_levels) {
-          const liveItems = data.inventory_levels.map((item, index) => ({
-            id: item.variant_id ? item.variant_id.substring(0, 8) : `${index + 1}`,
-            name: `صنف #${index + 1}`,
-            Stock: item.in_stock ?? 0,
-            image: 'prod1.jpg',
-          }));
+        if (data && Array.isArray(data.items)) {
           setInventory((prev) => ({
             ...prev,
-            items: liveItems,
+            items: data.items,
           }));
         }
         setLoading(false);
@@ -32,7 +26,7 @@ export default function Inventory() {
       });
   }, []);
 
-  // حذف عنصر محلياً من الجدول
+  // حذف صنف محلياً من القائمة
   const deleteItem = (id) => {
     setInventory((prevInventory) => ({
       ...prevInventory,
@@ -42,15 +36,17 @@ export default function Inventory() {
 
   return (
     <div className="inventory mainbar">
-      {/* Heading section */}
+      {/* عنوان الصفحة */}
       <div className="heading">
         <div className="headingtag">Inventory</div>
       </div>
-      {/* Total items count */}
+
+      {/* إجمالي الأصناف */}
       <div className="totalitems">
         {loading ? 'جاري التحميل...' : `Total Items - ${inventory.items.length}`}
       </div>
-      {/* Table headers */}
+
+      {/* عناوين الجدول */}
       <div className="inventoryheads">
         <div className="invsno">Sno.</div>
         <div className="invimg">Prod. Image</div>
@@ -61,20 +57,21 @@ export default function Inventory() {
           <div className="deleteitem">Delete</div>
         </div>
       </div>
-      {/* Inventory items section */}
+
+      {/* قائمة عناصر المخزون */}
       <div className="inventorysection">
         {loading ? (
-          <div style={{ padding: '24px', textAlign: 'center', color: '#aaa' }}>
+          <div style={{ padding: '30px', textAlign: 'center', color: '#aaa' }}>
             جاري مزامنة المخزون مع كاشير Loyverse...
           </div>
         ) : inventory.items.length === 0 ? (
-          <div style={{ padding: '24px', textAlign: 'center', color: '#aaa' }}>
+          <div style={{ padding: '30px', textAlign: 'center', color: '#aaa' }}>
             لا توجد عناصر مفعّل لها تتبع المخزون في Loyverse
           </div>
         ) : (
           inventory.items.map((item, index) => (
             <InvCard
-              key={item.id}
+              key={item.id || index}
               index={index + 1}
               imgsource={item.image}
               id={item.id}
@@ -88,13 +85,30 @@ export default function Inventory() {
     </div>
   );
 
-  // كرت عرض كل صنف داخل الجدول
+  // كرت عرض الصنف داخل الجدول
   function InvCard({ index, imgsource, id, invname, invcount, onDelete }) {
     return (
       <div className="invcard">
         <div className="invsno">{index}</div>
         <div className="invimg">
-          <img src={imgsource} alt="" className="invimgimg" />
+          {imgsource ? (
+            <img src={imgsource} alt={invname} className="invimgimg" />
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '38px',
+                height: '38px',
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                fontSize: '18px',
+              }}
+            >
+              📦
+            </div>
+          )}
         </div>
         <div className="invid">{id}</div>
         <div className="invname">{invname}</div>
