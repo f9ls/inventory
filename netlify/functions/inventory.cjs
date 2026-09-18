@@ -15,19 +15,22 @@ exports.handler = async (event) => {
       "Content-Type": "application/json",
     };
 
-    // جلب مستويات المخزون وتفاصيل المنتجات في نفس الوقت
-    const [invRes, itemsRes] = await Promise.all([
+    // سحب المخزون، والمنتجات، وآخر إيصالات المبيعات من Loyverse
+    const [invRes, itemsRes, receiptsRes] = await Promise.all([
       fetch("https://api.loyverse.com/v1.0/inventory", { headers }),
       fetch("https://api.loyverse.com/v1.0/items", { headers }),
+      fetch("https://api.loyverse.com/v1.0/receipts?limit=25", { headers }).catch(() => null),
     ]);
 
     const invData = await invRes.json();
     const itemsData = await itemsRes.json();
+    const receiptsData = receiptsRes ? await receiptsRes.json().catch(() => ({})) : {};
 
     const inventoryLevels = invData.inventory_levels || [];
     const items = itemsData.items || [];
+    const receipts = receiptsData.receipts || [];
 
-    // مطابقة كل صنف باسمه وصورته من Loyverse
+    // ربط المنتجات بالمعرف والصور
     const variantMap = {};
     items.forEach((item) => {
       if (item.variants) {
@@ -44,7 +47,7 @@ exports.handler = async (event) => {
       }
     });
 
-    // دمج الكميات مع الأسماء والصور
+    // قائمة المخزون الحي
     const liveItems = inventoryLevels.map((inv, index) => {
       const details = variantMap[inv.variant_id] || {};
       return {
@@ -55,13 +58,35 @@ exports.handler = async (event) => {
       };
     });
 
+    // تحويل إيصالات المبيعات الحقيقية إلى طلبات
+    const liveOrders = receipts.map((r, idx) => {
+      const firstItem = r.line_items && r.line_items[0] ? r.line_items[0] : null;
+      const totalQty = r.line_items
+        ? r.line_items.reduce((sum, item) => sum + (item.quantity || 0), 0)
+        : 1;
+
+      return {
+        orderid: r.receipt_number || `${idx + 1}`,
+        customername: r.customer_id ? "عميل مسجل" : "عميل كاشير",
+        status: r.receipt_type === "REFUND" ? "Refunded" : "Done",
+        orderitem: [
+          {
+            id: firstItem ? firstItem.variant_id : `${idx + 1}`,
+            name: firstItem ? firstItem.item_name : "طلب كاشير",
+            quantity: totalQty,
+            image: firstItem && variantMap[firstItem.variant_id] ? variantMap[firstItem.variant_id].image : null,
+          },
+        ],
+      };
+    });
+
     return {
       statusCode: 200,
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
       },
-      body: JSON.stringify({ items: liveItems }),
+      body: JSON.stringify({ items: liveItems, orders: liveOrders }),
     };
   } catch (error) {
     return {
