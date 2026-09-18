@@ -31,7 +31,7 @@ exports.handler = async (event) => {
       const payload = JSON.parse(event.body || "{}");
       const { name, price, sku } = payload;
 
-      if (!name) {
+      if (!name || !name.trim()) {
         return {
           statusCode: 400,
           headers,
@@ -39,16 +39,19 @@ exports.handler = async (event) => {
         };
       }
 
+      // صياغة المتغيرات المتوافقة بدقة مع Loyverse API
+      const variant = {
+        default_pricing_type: "FIXED",
+        default_price: parseFloat(price) || 0,
+      };
+
+      if (sku && sku.trim()) {
+        variant.sku = sku.trim();
+      }
+
       const itemBody = {
-        item_name: name,
-        variants: [
-          {
-            sku: sku || undefined,
-            price: Number(price) || 0,
-            track_inventory: true,
-            default_pricing_type: "FIXED",
-          },
-        ],
+        item_name: name.trim(),
+        variants: [variant],
       };
 
       const res = await fetch("https://api.loyverse.com/v1.0/items", {
@@ -59,8 +62,22 @@ exports.handler = async (event) => {
 
       const responseData = await res.json();
 
+      if (!res.ok) {
+        let errorMsg = "حدث خطأ أثناء حفظ الصنف في Loyverse";
+        if (responseData.errors && responseData.errors.length > 0) {
+          errorMsg = responseData.errors.map((e) => e.message || e.code).join(" | ");
+        } else if (responseData.message) {
+          errorMsg = responseData.message;
+        }
+        return {
+          statusCode: res.status,
+          headers,
+          body: JSON.stringify({ error: errorMsg }),
+        };
+      }
+
       return {
-        statusCode: res.status,
+        statusCode: 200,
         headers,
         body: JSON.stringify(responseData),
       };
