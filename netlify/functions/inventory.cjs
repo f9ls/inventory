@@ -10,23 +10,58 @@ exports.handler = async (event) => {
   }
 
   try {
-    // جلب مستويات المخزون من مسار Loyverse
-    const response = await fetch("https://api.loyverse.com/v1.0/inventory", {
-      headers: {
-        Authorization: `Bearer ${LOYVERSE_TOKEN}`,
-        "Content-Type": "application/json",
-      },
+    const headers = {
+      Authorization: `Bearer ${LOYVERSE_TOKEN}`,
+      "Content-Type": "application/json",
+    };
+
+    // جلب مستويات المخزون وتفاصيل المنتجات في نفس الوقت
+    const [invRes, itemsRes] = await Promise.all([
+      fetch("https://api.loyverse.com/v1.0/inventory", { headers }),
+      fetch("https://api.loyverse.com/v1.0/items", { headers }),
+    ]);
+
+    const invData = await invRes.json();
+    const itemsData = await itemsRes.json();
+
+    const inventoryLevels = invData.inventory_levels || [];
+    const items = itemsData.items || [];
+
+    // مطابقة كل صنف باسمه وصورته من Loyverse
+    const variantMap = {};
+    items.forEach((item) => {
+      if (item.variants) {
+        item.variants.forEach((v) => {
+          const displayName = v.option1_value
+            ? `${item.item_name} (${v.option1_value})`
+            : item.item_name;
+          variantMap[v.variant_id] = {
+            name: displayName,
+            image: item.image_url || null,
+            sku: v.sku || item.id,
+          };
+        });
+      }
     });
 
-    const data = await response.json();
+    // دمج الكميات مع الأسماء والصور
+    const liveItems = inventoryLevels.map((inv, index) => {
+      const details = variantMap[inv.variant_id] || {};
+      return {
+        id: details.sku || (inv.variant_id ? inv.variant_id.substring(0, 8) : `${index + 1}`),
+        name: details.name || `صنف #${index + 1}`,
+        Stock: inv.in_stock ?? 0,
+        image: details.image,
+      };
+    });
 
     return {
-      statusCode: response.status,
+      statusCode: 200,
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ items: liveItems }),
     };
   } catch (error) {
     return {
